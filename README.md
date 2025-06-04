@@ -1,6 +1,7 @@
 # JobsDB CV Analysis Chrome Extension
 
 一個智能的Chrome擴展程序，可以自動提取多個求職網站的職位信息，並通過AI分析您的CV與職位的匹配度。
+**https://youtu.be/EEyVj6jnGm8**
 
 ## ✨ 功能特點
 
