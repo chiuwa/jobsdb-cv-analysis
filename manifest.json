@@ -1,0 +1,75 @@
+{
+  "manifest_version": 3,
+  "name": "JobsDB CV Analysis",
+  "version": "1.0.0",
+  "description": "Extract job requirements from JobsDB and analyze CV compatibility using AI",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://hk.jobsdb.com/*",
+    "https://tw.jobsdb.com/*",
+    "https://sg.jobsdb.com/*",
+    "https://jobs.gov.hk/*",
+    "https://hkfyg.org.hk/*",
+    "https://*.hkfyg.org.hk/*",
+    "https://www.cpjobs.com/*",
+    "https://www.indeed.com.hk/*",
+    "https://www.linkedin.com/*",
+    "https://www.recruiter.com.hk/*",
+    "<all_urls>"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://hk.jobsdb.com/job/*",
+        "https://tw.jobsdb.com/job/*",
+        "https://sg.jobsdb.com/job/*"
+      ],
+      "js": [
+        "src/services/LoggerService.js",
+        "src/extractors/JobsDBExtractor.js", 
+        "src/extractors/GenericJobExtractor.js",
+        "src/content/jobExtractor.js"
+      ],
+      "css": ["src/styles/content.css"]
+    },
+    {
+      "matches": [
+        "https://jobs.gov.hk/*",
+        "https://hkfyg.org.hk/*",
+        "https://*.hkfyg.org.hk/*",
+        "https://www.cpjobs.com/*",
+        "https://www.indeed.com.hk/*",
+        "https://www.linkedin.com/jobs/*",
+        "https://www.recruiter.com.hk/*"
+      ],
+      "js": [
+        "src/services/LoggerService.js",
+        "src/extractors/GenericJobExtractor.js",
+        "src/content/jobExtractor.js"
+      ],
+      "css": ["src/styles/content.css"]
+    }
+  ],
+  "background": {
+    "service_worker": "src/background/serviceWorker.js"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "JobsDB CV Analysis"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/styles/injected.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+} 

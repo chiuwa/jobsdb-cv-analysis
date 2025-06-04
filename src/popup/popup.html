@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JobsDB CV Matcher</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="popup-header">
+            <div class="header-content">
+                <span class="logo">🎯</span>
+                <h1>CV匹配分析</h1>
+            </div>
+            <div class="header-actions">
+                <button id="refresh-btn" class="icon-btn" title="刷新">
+                    <span>🔄</span>
+                </button>
+                <button id="settings-btn" class="icon-btn" title="設置">
+                    <span>⚙️</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading-container">
+            <div class="spinner"></div>
+            <p>正在加載...</p>
+        </div>
+
+        <!-- Main Content -->
+        <main id="main-content" style="display: none;">
+            <!-- Current Job Info Display -->
+            <section class="job-info-section">
+                <div class="job-info-header">
+                    <h3>📋 當前職位資訊</h3>
+                    <button id="extract-job-btn" class="btn btn-secondary btn-small">
+                        <span class="icon">🔍</span>
+                        提取資訊
+                    </button>
+                </div>
+                <div id="job-info-display" class="job-info-display">
+                    <div class="job-info-item">
+                        <span class="job-info-label">職位：</span>
+                        <span id="job-title" class="job-info-value">請先提取職位資訊</span>
+                    </div>
+                    <div class="job-info-item" style="display: none;">
+                        <span class="job-info-label">公司：</span>
+                        <span id="job-company" class="job-info-value">未知</span>
+                    </div>
+                    <div class="job-info-item">
+                        <span class="job-info-label">職責：</span>
+                        <span id="job-responsibilities" class="job-info-value">0 項</span>
+                    </div>
+                    <div class="job-info-item">
+                        <span class="job-info-label">要求：</span>
+                        <span id="job-requirements" class="job-info-value">0 項</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CV Management Section -->
+            <section class="cv-section">
+                <div class="section-header">
+                    <h3>📁 CV管理</h3>
+                    <button id="upload-cv-btn" class="btn btn-secondary btn-small">
+                        <span class="icon">📁</span>
+                        上傳CV
+                    </button>
+                </div>
+
+                <!-- Current CV Display -->
+                <div id="current-cv" class="current-cv" style="display: none;">
+                    <div class="cv-display-card">
+                        <div class="cv-icon">📄</div>
+                        <div class="cv-info">
+                            <div class="cv-name" id="current-cv-name"></div>
+                            <div class="cv-meta" id="current-cv-meta"></div>
+                        </div>
+                        <button id="change-cv-btn" class="btn-link">更換</button>
+                    </div>
+                </div>
+
+                <!-- No CV Message -->
+                <div id="no-cv" class="no-cv-display" style="display: none;">
+                    <div class="no-cv-icon">📤</div>
+                    <p>尚未上傳CV</p>
+                    <button id="upload-first-cv-btn" class="btn btn-primary">
+                        <span class="icon">📤</span>
+                        上傳第一個CV
+                    </button>
+                </div>
+
+                <!-- Analysis Button -->
+                <div class="analysis-section">
+                    <button id="analyze-btn" class="btn btn-primary btn-analysis" disabled>
+                        <span class="icon">🔍</span>
+                        開始分析匹配度
+                    </button>
+                </div>
+            </section>
+
+            <!-- Quick Actions -->
+            <section class="actions-section">
+                <div class="actions-grid">
+                    <button id="open-jobsdb-btn" class="action-btn">
+                        <span class="icon">🔍</span>
+                        <span>打開JobsDB</span>
+                    </button>
+                    <button id="view-history-btn" class="action-btn">
+                        <span class="icon">📊</span>
+                        <span>查看歷史</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Analysis Results -->
+            <div id="analysis-result" class="analysis-result" style="display: none;"></div>
+            
+            <!-- CV Management Extras (Statistics, List, etc.) -->
+            <div id="cv-extras" style="display: none;">
+                <!-- CV List -->
+                <div id="cv-list" class="cv-list">
+                    <h4>已保存的CV</h4>
+                    <div id="cv-items" class="cv-items">
+                        <!-- CV items will be populated here -->
+                    </div>
+                </div>
+
+                <!-- CV Statistics -->
+                <div id="cv-stats" class="cv-stats">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-value" id="total-cvs">0</span>
+                            <span class="stat-label">總CV數</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value" id="total-size">0</span>
+                            <span class="stat-label">總大小</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CV Management Actions -->
+                <div id="cv-actions" class="cv-actions">
+                    <button id="clear-all-cvs-btn" class="btn btn-danger btn-small">
+                        <span class="icon">🗑️</span>
+                        清除所有CV
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Settings Panel -->
+        <div id="settings-panel" class="settings-panel" style="display: none;">
+            <div class="panel-header">
+                <h2>設置</h2>
+                <button id="close-settings-btn" class="icon-btn">
+                    <span>✕</span>
+                </button>
+            </div>
+
+            <div class="panel-content">
+                <!-- API Status Section -->
+                <section class="config-section">
+                    <h3>🔗 API 狀態</h3>
+                    <div class="api-status-display">
+                        <div id="api-status" class="status-indicator">
+                            <span class="status-dot"></span>
+                            <span class="status-text">檢查中...</span>
+                        </div>
+                        <div id="api-error" class="error-message" style="display: none;">
+                            <p id="api-error-text"></p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- API Configuration -->
+                <section class="config-section">
+                    <h3>🔧 N8n API 配置</h3>
+                    <form id="api-config-form">
+                        <div class="form-group">
+                            <label for="api-url">API URL</label>
+                            <input 
+                                type="url" 
+                                id="api-url" 
+                                placeholder="https://your-n8n-instance.com/webhook/..."
+                                required
+                            >
+                        </div>
+                        <div class="form-group">
+                            <label for="api-key">API Key (可選)</label>
+                            <input 
+                                type="password" 
+                                id="api-key" 
+                                placeholder="輸入您的API Key (沒有可留空)"
+                            >
+                            <button type="button" id="toggle-api-key" class="toggle-password">
+                                <span>👁️</span>
+                            </button>
+                        </div>
+                        <div class="form-actions">
+                            <button type="button" id="test-connection-btn" class="btn btn-secondary">
+                                測試連接
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                保存配置
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Data Management -->
+                <section class="config-section">
+                    <h3>🗂️ 數據管理</h3>
+                    <div class="data-actions">
+                        <button id="export-data-btn" class="btn btn-secondary">
+                            <span class="icon">📥</span>
+                            導出數據
+                        </button>
+                        <button id="clear-data-btn" class="btn btn-danger">
+                            <span class="icon">🗑️</span>
+                            清除所有數據
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Debug Tools -->
+                <section class="config-section">
+                    <h3>🔍 調試工具</h3>
+                    <div class="data-actions">
+                        <button id="debug-job-extraction-btn" class="btn btn-secondary">
+                            <span class="icon">💼</span>
+                            職位信息提取調試
+                        </button>
+                        <button id="debug-cv-btn" class="btn btn-secondary">
+                            <span class="icon">🔍</span>
+                            檢查CV數據
+                        </button>
+                    </div>
+                    <div id="debug-output" style="margin-top: 15px; padding: 10px; background: #f9f9f9; border-radius: 4px; font-size: 12px; max-height: 300px; overflow-y: auto; display: none;"></div>
+                </section>
+            </div>
+        </div>
+
+        <!-- File Input (Hidden) -->
+        <input type="file" id="cv-file-input" accept=".pdf,.doc,.docx,.txt" style="display: none;">
+
+        <!-- Messages -->
+        <div id="message-container" class="message-container"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../services/LoggerService.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html> 

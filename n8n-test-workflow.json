@@ -1,0 +1,222 @@
+{
+  "name": "JobsDB CV Matcher - FormData Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jobsdb-cv-matcher/analyze-job-with-cv",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "jobsdb-cv-matcher"
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "string": [
+            {
+              "name": "jobDetailsRaw",
+              "value": "={{ $json.jobDetails || 'No job details' }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $json.timestamp || 'No timestamp' }}"
+            },
+            {
+              "name": "source",
+              "value": "={{ $json.source || 'No source' }}"
+            },
+            {
+              "name": "cvFileName",
+              "value": "={{ $binary.cvFile?.fileName || 'No CV file' }}"
+            },
+            {
+              "name": "cvFileSize",
+              "value": "={{ $binary.cvFile?.fileSize || 0 }}"
+            },
+            {
+              "name": "cvMimeType",
+              "value": "={{ $binary.cvFile?.mimeType || 'Unknown' }}"
+            }
+          ],
+          "boolean": [
+            {
+              "name": "hasCvFile",
+              "value": "={{ !!$binary.cvFile }}"
+            },
+            {
+              "name": "hasJobData",
+              "value": "={{ !!$json.jobDetails }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-formdata",
+      "name": "Extract FormData",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": false,
+        "values": {
+          "object": [
+            {
+              "name": "jobData",
+              "value": "={{ JSON.parse($json.jobDetailsRaw || '{}') }}"
+            }
+          ],
+          "string": [
+            {
+              "name": "jobTitle",
+              "value": "={{ JSON.parse($json.jobDetailsRaw || '{}').title || 'No title' }}"
+            },
+            {
+              "name": "jobCompany", 
+              "value": "={{ JSON.parse($json.jobDetailsRaw || '{}').company || 'No company' }}"
+            },
+            {
+              "name": "responsibilitiesCount",
+              "value": "={{ (JSON.parse($json.jobDetailsRaw || '{}').responsibilities || []).length }}"
+            },
+            {
+              "name": "requirementsCount",
+              "value": "={{ (JSON.parse($json.jobDetailsRaw || '{}').requirements || []).length }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "parse-job-data",
+      "name": "Parse Job Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "action": "pdf",
+        "options": {},
+        "binaryPropertyName": "cvFile"
+      },
+      "id": "extract-pdf-text",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "debug": {
+            "receivedAt": "={{ new Date().toISOString() }}",
+            "uploadMethod": "formdata-processing",
+            "formData": {
+              "hasJobData": "={{ $('Extract FormData').item.json.hasJobData }}",
+              "hasCvFile": "={{ $('Extract FormData').item.json.hasCvFile }}",
+              "timestamp": "={{ $('Extract FormData').item.json.timestamp }}",
+              "source": "={{ $('Extract FormData').item.json.source }}"
+            },
+            "jobData": {
+              "title": "={{ $('Parse Job Data').item.json.jobTitle }}",
+              "company": "={{ $('Parse Job Data').item.json.jobCompany }}",
+              "responsibilitiesCount": "={{ $('Parse Job Data').item.json.responsibilitiesCount }}",
+              "requirementsCount": "={{ $('Parse Job Data').item.json.requirementsCount }}"
+            },
+            "cvFile": {
+              "fileName": "={{ $('Extract FormData').item.json.cvFileName }}",
+              "fileSize": "={{ $('Extract FormData').item.json.cvFileSize }}",
+              "mimeType": "={{ $('Extract FormData').item.json.cvMimeType }}"
+            },
+            "pdfProcessing": {
+              "extractionSuccess": "={{ !!$('Extract PDF Text').item.json?.text }}",
+              "textLength": "={{ $('Extract PDF Text').item.json?.text?.length || 0 }}",
+              "textPreview": "={{ $('Extract PDF Text').item.json?.text?.substring(0, 200) || 'No text extracted' }}"
+            }
+          },
+          "analysis": {
+            "matchScore": 88,
+            "pdfProcessingResult": "{{ $('Extract PDF Text').item.json?.text ? 'Success' : 'Failed' }}",
+            "extractedTextLength": "{{ $('Extract PDF Text').item.json?.text?.length || 0 }}",
+            "jobAnalysis": {
+              "title": "{{ $('Parse Job Data').item.json.jobTitle }}",
+              "company": "{{ $('Parse Job Data').item.json.jobCompany }}",
+              "responsibilitiesCount": "{{ $('Parse Job Data').item.json.responsibilitiesCount }}",
+              "requirementsCount": "{{ $('Parse Job Data').item.json.requirementsCount }}"
+            },
+            "recommendations": [
+              "FormData processing successful - PDF extracted",
+              "CV file: {{ $('Extract FormData').item.json.cvFileName }}",
+              "File size: {{ $('Extract FormData').item.json.cvFileSize }} bytes",
+              "Extracted text length: {{ $('Extract PDF Text').item.json?.text?.length || 0 }} characters",
+              "Ready for comprehensive job-CV matching analysis"
+            ]
+          }
+        }
+      },
+      "id": "respond-with-results",
+      "name": "Respond with Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract FormData",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract FormData": {
+      "main": [
+        [
+          {
+            "node": "Parse Job Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Job Data": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Respond with Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null
+} 

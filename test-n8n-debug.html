@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N8n 數據接收調試工具</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .section:last-child {
+            border-bottom: none;
+        }
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .field-info {
+            background: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 N8n 數據接收調試工具</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 30px;">
+            這個工具可以幫助您測試N8n是否正確接收job信息和CV文件
+        </p>
+
+        <div class="section">
+            <h2>📋 測試配置</h2>
+            <div class="form-group">
+                <label for="webhookUrl">N8n Webhook URL</label>
+                <input type="url" id="webhookUrl" placeholder="https://your-n8n-instance.com/webhook/...">
+            </div>
+            <div class="form-group">
+                <label for="apiKey">API Key (可選)</label>
+                <input type="text" id="apiKey" placeholder="輸入您的API Key (沒有可留空)">
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>💼 模擬職位信息</h2>
+            <div class="form-group">
+                <label for="jobTitle">職位標題</label>
+                <input type="text" id="jobTitle" value="高級軟體工程師" placeholder="輸入職位標題">
+            </div>
+            <div class="form-group">
+                <label for="jobCompany">公司名稱</label>
+                <input type="text" id="jobCompany" value="科技公司有限公司" placeholder="輸入公司名稱">
+            </div>
+            <div class="form-group">
+                <label for="jobResponsibilities">職位職責（每行一項）</label>
+                <textarea id="jobResponsibilities" placeholder="開發和維護Web應用程式&#10;與團隊協作完成項目&#10;編寫高質量的程式碼">開發和維護Web應用程式
+與團隊協作完成項目
+編寫高質量的程式碼
+參與代碼審查和技術討論</textarea>
+            </div>
+            <div class="form-group">
+                <label for="jobRequirements">職位要求（每行一項）</label>
+                <textarea id="jobRequirements" placeholder="熟悉JavaScript和Node.js&#10;至少3年相關工作經驗&#10;具備良好的溝通能力">熟悉JavaScript和Node.js
+至少3年相關工作經驗
+具備良好的溝通能力
+熟悉前端框架如React或Vue</textarea>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📄 測試文件</h2>
+            <div class="form-group">
+                <label for="testFile">選擇測試用PDF文件</label>
+                <input type="file" id="testFile" accept=".pdf">
+                <div class="field-info">
+                    請選擇一個PDF文件來測試文件上傳功能
+                </div>
+            </div>
+            <button onclick="generateTestPDF()">生成測試PDF</button>
+            <div class="field-info">
+                如果沒有PDF文件，可以點擊上面的按鈕生成一個簡單的測試PDF
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🧪 測試操作</h2>
+            <button onclick="testJobDataOnly()">僅測試Job數據</button>
+            <button onclick="testFileOnly()">僅測試文件上傳</button>
+            <button onclick="testComplete()">測試完整數據</button>
+            <button onclick="clearResults()" class="btn-danger">清除結果</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let testFileContent = null;
+        let testFileName = null;
+
+        // 監聽文件選擇
+        document.getElementById('testFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                testFileName = file.name;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    testFileContent = event.target.result;
+                    showResult(`檔案已載入: ${file.name} (${file.size} bytes)`, 'info');
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        function showResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultElement = document.createElement('div');
+            resultElement.className = `result ${type}`;
+            resultElement.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            resultsDiv.appendChild(resultElement);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function getJobData() {
+            const responsibilities = document.getElementById('jobResponsibilities').value
+                .split('\n')
+                .filter(line => line.trim())
+                .map(line => line.trim());
+            
+            const requirements = document.getElementById('jobRequirements').value
+                .split('\n')
+                .filter(line => line.trim())
+                .map(line => line.trim());
+
+            return {
+                title: document.getElementById('jobTitle').value.trim(),
+                company: document.getElementById('jobCompany').value.trim(),
+                responsibilities: responsibilities,
+                requirements: requirements,
+                details: {
+                    url: 'https://test-page.com/job/12345',
+                    extractedAt: new Date().toISOString()
+                },
+                metadata: {
+                    extractedAt: new Date().toISOString(),
+                    source: 'jobsdb-extension-debug-tool',
+                    version: '1.0.0'
+                }
+            };
+        }
+
+        async function testJobDataOnly() {
+            const webhookUrl = document.getElementById('webhookUrl').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+
+            if (!webhookUrl) {
+                showResult('錯誤: 請輸入Webhook URL', 'error');
+                return;
+            }
+
+            try {
+                showResult('開始測試Job數據發送...', 'info');
+                
+                const jobData = getJobData();
+                showResult(`準備發送Job數據: ${JSON.stringify(jobData, null, 2)}`, 'info');
+
+                const formData = new FormData();
+                formData.append('jobDetails', JSON.stringify(jobData));
+                formData.append('timestamp', new Date().toISOString());
+                formData.append('source', 'debug-tool-job-only');
+
+                const headers = {};
+                if (apiKey) {
+                    headers['Authorization'] = `Bearer ${apiKey}`;
+                }
+
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.text();
+                    showResult(`Job數據發送成功!\n狀態: ${response.status}\n響應: ${result}`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    showResult(`Job數據發送失敗!\n狀態: ${response.status}\n錯誤: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                showResult(`Job數據發送出錯: ${error.message}`, 'error');
+            }
+        }
+
+        async function testFileOnly() {
+            const webhookUrl = document.getElementById('webhookUrl').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+
+            if (!webhookUrl) {
+                showResult('錯誤: 請輸入Webhook URL', 'error');
+                return;
+            }
+
+            if (!testFileContent) {
+                showResult('錯誤: 請先選擇或生成測試文件', 'error');
+                return;
+            }
+
+            try {
+                showResult('開始測試文件上傳...', 'info');
+
+                const formData = new FormData();
+                const blob = new Blob([testFileContent], { type: 'application/pdf' });
+                formData.append('cvFile', blob, testFileName || 'test.pdf');
+                formData.append('timestamp', new Date().toISOString());
+                formData.append('source', 'debug-tool-file-only');
+
+                const headers = {};
+                if (apiKey) {
+                    headers['Authorization'] = `Bearer ${apiKey}`;
+                }
+
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.text();
+                    showResult(`文件上傳成功!\n狀態: ${response.status}\n響應: ${result}`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    showResult(`文件上傳失敗!\n狀態: ${response.status}\n錯誤: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                showResult(`文件上傳出錯: ${error.message}`, 'error');
+            }
+        }
+
+        async function testComplete() {
+            const webhookUrl = document.getElementById('webhookUrl').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+
+            if (!webhookUrl) {
+                showResult('錯誤: 請輸入Webhook URL', 'error');
+                return;
+            }
+
+            if (!testFileContent) {
+                showResult('錯誤: 請先選擇或生成測試文件', 'error');
+                return;
+            }
+
+            try {
+                showResult('開始測試完整數據發送...', 'info');
+                
+                const jobData = getJobData();
+                showResult(`準備發送完整數據:\nJob數據: ${JSON.stringify(jobData, null, 2)}\n文件: ${testFileName} (${testFileContent.byteLength} bytes)`, 'info');
+
+                const formData = new FormData();
+                formData.append('jobDetails', JSON.stringify(jobData));
+                
+                const blob = new Blob([testFileContent], { type: 'application/pdf' });
+                formData.append('cvFile', blob, testFileName || 'test.pdf');
+                
+                formData.append('timestamp', new Date().toISOString());
+                formData.append('source', 'debug-tool-complete');
+
+                // 記錄FormData內容
+                let formDataLog = 'FormData內容:\n';
+                for (let pair of formData.entries()) {
+                    const [key, value] = pair;
+                    if (value instanceof Blob) {
+                        formDataLog += `${key}: Blob (${value.size} bytes, type: ${value.type})\n`;
+                    } else {
+                        formDataLog += `${key}: ${typeof value} (${value.length} chars) - "${value.substring(0, 100)}${value.length > 100 ? '...' : ''}"\n`;
+                    }
+                }
+                showResult(formDataLog, 'info');
+
+                const headers = {};
+                if (apiKey) {
+                    headers['Authorization'] = `Bearer ${apiKey}`;
+                }
+
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const result = await response.text();
+                    showResult(`完整數據發送成功!\n狀態: ${response.status}\n響應: ${result}`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    showResult(`完整數據發送失敗!\n狀態: ${response.status}\n錯誤: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                showResult(`完整數據發送出錯: ${error.message}`, 'error');
+            }
+        }
+
+        function generateTestPDF() {
+            // 創建一個簡單的PDF內容（實際上只是文本，但模擬PDF格式）
+            const pdfContent = `%PDF-1.4
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+/Type /Pages
+/Kids [3 0 R]
+/Count 1
+>>
+endobj
+
+3 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/MediaBox [0 0 612 792]
+/Contents 4 0 R
+>>
+endobj
+
+4 0 obj
+<<
+/Length 56
+>>
+stream
+BT
+/F1 12 Tf
+100 700 Td
+(This is a test PDF for debugging) Tj
+ET
+endstream
+endobj
+
+xref
+0 5
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000214 00000 n 
+trailer
+<<
+/Size 5
+/Root 1 0 R
+>>
+startxref
+325
+%%EOF`;
+
+            // 轉換為ArrayBuffer
+            const encoder = new TextEncoder();
+            testFileContent = encoder.encode(pdfContent).buffer;
+            testFileName = 'debug-test.pdf';
+            
+            showResult(`已生成測試PDF: ${testFileName} (${testFileContent.byteLength} bytes)`, 'success');
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // 頁面載入時的初始化
+        window.onload = function() {
+            showResult('N8n數據接收調試工具已準備就緒', 'info');
+            showResult('請配置Webhook URL後開始測試', 'info');
+        };
+    </script>
+</body>
+</html> 

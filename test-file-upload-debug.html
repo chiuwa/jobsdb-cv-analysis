@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件上傳調試工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .upload-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .file-input {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background: #45a049;
+        }
+        .btn.secondary {
+            background: #2196F3;
+        }
+        .btn.secondary:hover {
+            background: #1976D2;
+        }
+        .btn.danger {
+            background: #f44336;
+        }
+        .btn.danger:hover {
+            background: #d32f2f;
+        }
+        .results-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .log-entry {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            border-left: 4px solid;
+        }
+        .log-info {
+            background: #e3f2fd;
+            border-left-color: #2196F3;
+            color: #1565C0;
+        }
+        .log-success {
+            background: #e8f5e9;
+            border-left-color: #4CAF50;
+            color: #2E7D32;
+        }
+        .log-warning {
+            background: #fff3e0;
+            border-left-color: #FF9800;
+            color: #F57C00;
+        }
+        .log-error {
+            background: #ffebee;
+            border-left-color: #f44336;
+            color: #C62828;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .comparison-table th {
+            background: #f5f5f5;
+            font-weight: bold;
+        }
+        .match { background: #e8f5e9; }
+        .mismatch { background: #ffebee; }
+        .hex-viewer {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            background: #1e1e1e;
+            color: #ffffff;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .hex-offset { color: #569CD6; }
+        .hex-bytes { color: #DCDCAA; }
+        .hex-ascii { color: #CE9178; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 文件上傳調試工具</h1>
+        <p>這個工具可以幫助調試Chrome擴展的文件上傳過程，檢測數據截斷問題。</p>
+        
+        <div class="upload-section">
+            <h2>📁 選擇文件進行測試</h2>
+            <input type="file" id="fileInput" class="file-input" accept=".pdf" />
+            <br>
+            <button onclick="testFileRead()" class="btn">🔍 開始測試</button>
+            <button onclick="simulateExtensionUpload()" class="btn secondary">📤 模擬擴展上傳</button>
+            <button onclick="clearResults()" class="btn danger">🗑️ 清除結果</button>
+        </div>
+
+        <div class="stats-grid" id="statsGrid" style="display: none;">
+            <!-- 統計卡片將動態插入 -->
+        </div>
+
+        <div class="results-section">
+            <h2>📊 測試結果</h2>
+            <div id="logContainer"></div>
+        </div>
+
+        <div class="results-section" id="comparisonSection" style="display: none;">
+            <h2>📈 數據對比分析</h2>
+            <table class="comparison-table" id="comparisonTable">
+                <thead>
+                    <tr>
+                        <th>項目</th>
+                        <th>原始文件</th>
+                        <th>ArrayBuffer</th>
+                        <th>Base64</th>
+                        <th>狀態</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="results-section" id="hexSection" style="display: none;">
+            <h2>🔢 文件內容預覽 (前256字節)</h2>
+            <div id="hexViewer" class="hex-viewer"></div>
+        </div>
+    </div>
+
+    <script>
+        let testResults = {
+            originalFile: null,
+            arrayBuffer: null,
+            base64String: null,
+            reconstructedFile: null
+        };
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.innerHTML = `<strong>[${new Date().toLocaleTimeString()}] ${type.toUpperCase()}:</strong> ${message}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function updateStats() {
+            const statsGrid = document.getElementById('statsGrid');
+            const results = testResults;
+            
+            const stats = [
+                {
+                    label: '原始大小',
+                    value: results.originalFile ? `${results.originalFile.size} B` : 'N/A',
+                    detail: results.originalFile ? `${(results.originalFile.size / 1024).toFixed(1)} KB` : ''
+                },
+                {
+                    label: 'ArrayBuffer大小',
+                    value: results.arrayBuffer ? `${results.arrayBuffer.byteLength} B` : 'N/A',
+                    detail: results.arrayBuffer ? `${(results.arrayBuffer.byteLength / 1024).toFixed(1)} KB` : ''
+                },
+                {
+                    label: 'Base64長度',
+                    value: results.base64String ? `${results.base64String.length}` : 'N/A',
+                    detail: results.base64String ? `預估: ${Math.floor(results.base64String.length * 3/4)} B` : ''
+                },
+                {
+                    label: '數據完整性',
+                    value: checkDataIntegrity(),
+                    detail: ''
+                }
+            ];
+
+            statsGrid.innerHTML = stats.map(stat => `
+                <div class="stat-card">
+                    <div class="stat-value">${stat.value}</div>
+                    <div class="stat-label">${stat.label}</div>
+                    ${stat.detail ? `<div class="stat-label" style="color: #888;">${stat.detail}</div>` : ''}
+                </div>
+            `).join('');
+
+            statsGrid.style.display = 'grid';
+        }
+
+        function checkDataIntegrity() {
+            const results = testResults;
+            if (!results.originalFile || !results.arrayBuffer || !results.base64String) {
+                return '未測試';
+            }
+
+            const originalSize = results.originalFile.size;
+            const arrayBufferSize = results.arrayBuffer.byteLength;
+            const estimatedSize = Math.floor(results.base64String.length * 3 / 4);
+
+            if (originalSize === arrayBufferSize && Math.abs(arrayBufferSize - estimatedSize) <= 3) {
+                return '✅ 完整';
+            } else if (originalSize === arrayBufferSize) {
+                return '⚠️ 部分問題';
+            } else {
+                return '❌ 有問題';
+            }
+        }
+
+        function updateComparison() {
+            const table = document.getElementById('comparisonTable').querySelector('tbody');
+            const results = testResults;
+            
+            if (!results.originalFile) return;
+
+            const comparisons = [
+                {
+                    item: '文件大小 (bytes)',
+                    original: results.originalFile.size,
+                    arrayBuffer: results.arrayBuffer ? results.arrayBuffer.byteLength : 'N/A',
+                    base64: results.base64String ? `${Math.floor(results.base64String.length * 3/4)} (估算)` : 'N/A'
+                },
+                {
+                    item: '文件名稱',
+                    original: results.originalFile.name,
+                    arrayBuffer: '相同',
+                    base64: '相同'
+                },
+                {
+                    item: '文件類型',
+                    original: results.originalFile.type,
+                    arrayBuffer: '相同',
+                    base64: '相同'
+                },
+                {
+                    item: '最後修改時間',
+                    original: new Date(results.originalFile.lastModified).toLocaleString(),
+                    arrayBuffer: '相同',
+                    base64: '相同'
+                }
+            ];
+
+            table.innerHTML = comparisons.map(comp => {
+                let status = 'match';
+                let statusText = '✅ 匹配';
+                
+                if (comp.item === '文件大小 (bytes)' && results.arrayBuffer) {
+                    const originalSize = parseInt(comp.original);
+                    const bufferSize = results.arrayBuffer.byteLength;
+                    const estimatedSize = results.base64String ? Math.floor(results.base64String.length * 3/4) : 0;
+                    
+                    if (originalSize !== bufferSize || Math.abs(bufferSize - estimatedSize) > 3) {
+                        status = 'mismatch';
+                        statusText = '❌ 不匹配';
+                    }
+                }
+
+                return `
+                    <tr class="${status}">
+                        <td><strong>${comp.item}</strong></td>
+                        <td>${comp.original}</td>
+                        <td>${comp.arrayBuffer}</td>
+                        <td>${comp.base64}</td>
+                        <td>${statusText}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('comparisonSection').style.display = 'block';
+        }
+
+        function showHexPreview(arrayBuffer) {
+            const hexViewer = document.getElementById('hexViewer');
+            const bytes = new Uint8Array(arrayBuffer);
+            const previewSize = Math.min(256, bytes.length);
+            
+            let hexOutput = '';
+            for (let i = 0; i < previewSize; i += 16) {
+                const offset = i.toString(16).padStart(8, '0').toUpperCase();
+                let hexLine = '';
+                let asciiLine = '';
+                
+                for (let j = 0; j < 16 && (i + j) < previewSize; j++) {
+                    const byte = bytes[i + j];
+                    hexLine += byte.toString(16).padStart(2, '0').toUpperCase() + ' ';
+                    asciiLine += (byte >= 32 && byte <= 126) ? String.fromCharCode(byte) : '.';
+                }
+                
+                hexLine = hexLine.padEnd(48, ' ');
+                hexOutput += `<span class="hex-offset">${offset}</span>  <span class="hex-bytes">${hexLine}</span>  <span class="hex-ascii">${asciiLine}</span>\n`;
+            }
+            
+            if (bytes.length > previewSize) {
+                hexOutput += `\n... (顯示前 ${previewSize} 字節，總共 ${bytes.length} 字節)`;
+            }
+            
+            hexViewer.innerHTML = hexOutput;
+            document.getElementById('hexSection').style.display = 'block';
+        }
+
+        async function testFileRead() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('請先選擇一個文件', 'error');
+                return;
+            }
+
+            log(`開始測試文件: ${file.name} (${file.size} bytes)`, 'info');
+            testResults.originalFile = file;
+
+            try {
+                // 1. 讀取為 ArrayBuffer
+                log('步驟 1: 讀取文件為 ArrayBuffer...', 'info');
+                const arrayBuffer = await readFileAsArrayBuffer(file);
+                testResults.arrayBuffer = arrayBuffer;
+                
+                log(`ArrayBuffer 讀取成功: ${arrayBuffer.byteLength} bytes`, 'success');
+                
+                if (arrayBuffer.byteLength !== file.size) {
+                    log(`⚠️ 大小不匹配! 原始: ${file.size}, ArrayBuffer: ${arrayBuffer.byteLength}`, 'warning');
+                }
+
+                // 2. 轉換為 Base64
+                log('步驟 2: 轉換 ArrayBuffer 為 Base64...', 'info');
+                const base64 = await arrayBufferToBase64(arrayBuffer);
+                testResults.base64String = base64;
+                
+                const estimatedSize = Math.floor(base64.length * 3 / 4);
+                log(`Base64 轉換成功: ${base64.length} 字符 (預估 ${estimatedSize} bytes)`, 'success');
+                
+                if (Math.abs(arrayBuffer.byteLength - estimatedSize) > 3) {
+                    log(`⚠️ Base64 轉換可能有問題! ArrayBuffer: ${arrayBuffer.byteLength}, 預估: ${estimatedSize}`, 'warning');
+                }
+
+                // 3. 驗證 PDF 頭部
+                if (arrayBuffer.byteLength >= 4) {
+                    const header = new Uint8Array(arrayBuffer.slice(0, 4));
+                    const pdfHeader = String.fromCharCode(...header);
+                    
+                    if (pdfHeader === '%PDF') {
+                        log('✅ PDF 頭部驗證通過', 'success');
+                    } else {
+                        log(`❌ PDF 頭部驗證失敗: ${pdfHeader}`, 'error');
+                    }
+                }
+
+                // 4. 測試 Base64 解碼
+                log('步驟 3: 測試 Base64 解碼...', 'info');
+                const decodedBuffer = base64ToArrayBuffer(base64);
+                
+                if (decodedBuffer.byteLength === arrayBuffer.byteLength) {
+                    log('✅ Base64 編碼/解碼循環測試通過', 'success');
+                } else {
+                    log(`❌ Base64 編碼/解碼循環失敗! 原始: ${arrayBuffer.byteLength}, 解碼後: ${decodedBuffer.byteLength}`, 'error');
+                }
+
+                // 更新統計和比較
+                updateStats();
+                updateComparison();
+                showHexPreview(arrayBuffer);
+
+                log('📊 所有測試完成! 請檢查上方的統計和比較數據。', 'info');
+
+            } catch (error) {
+                log(`測試過程中發生錯誤: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        }
+
+        async function simulateExtensionUpload() {
+            if (!testResults.originalFile || !testResults.arrayBuffer) {
+                log('請先運行基本文件測試', 'error');
+                return;
+            }
+
+            log('🚀 模擬Chrome擴展上傳過程...', 'info');
+            
+            try {
+                // 模擬 popup.js 的處理
+                const fileInfo = {
+                    name: testResults.originalFile.name,
+                    type: testResults.originalFile.type,
+                    size: testResults.originalFile.size,
+                    lastModified: testResults.originalFile.lastModified
+                };
+
+                log('模擬發送到service worker...', 'info');
+                
+                // 模擬 service worker 的直接 ArrayBuffer 到 Base64 轉換
+                const directBase64 = await arrayBufferToBase64(testResults.arrayBuffer);
+                
+                // 模擬創建 CV 信息
+                const cvInfo = {
+                    id: generateUUID(),
+                    name: fileInfo.name,
+                    size: fileInfo.size,
+                    type: fileInfo.type,
+                    uploadedAt: new Date().toISOString(),
+                    contentBase64: directBase64
+                };
+
+                log(`✅ 模擬上傳成功!`, 'success');
+                log(`CV ID: ${cvInfo.id}`, 'info');
+                log(`保存的Base64長度: ${cvInfo.contentBase64.length}`, 'info');
+                log(`預估文件大小: ${Math.floor(cvInfo.contentBase64.length * 3/4)} bytes`, 'info');
+                
+                // 驗證結果
+                const sizeDifference = Math.abs(fileInfo.size - Math.floor(cvInfo.contentBase64.length * 3/4));
+                if (sizeDifference <= 3) {
+                    log('✅ 模擬上傳數據完整性驗證通過', 'success');
+                } else {
+                    log(`❌ 模擬上傳數據完整性驗證失敗! 差異: ${sizeDifference} bytes`, 'error');
+                }
+
+            } catch (error) {
+                log(`模擬上傳失敗: ${error.message}`, 'error');
+                console.error('Simulation error:', error);
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('logContainer').innerHTML = '';
+            document.getElementById('statsGrid').style.display = 'none';
+            document.getElementById('comparisonSection').style.display = 'none';
+            document.getElementById('hexSection').style.display = 'none';
+            
+            testResults = {
+                originalFile: null,
+                arrayBuffer: null,
+                base64String: null,
+                reconstructedFile: null
+            };
+            
+            log('結果已清除', 'info');
+        }
+
+        // 工具函數
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = e => reject(new Error('Failed to read file as ArrayBuffer'));
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        async function arrayBufferToBase64(arrayBuffer) {
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = '';
+            const chunkSize = 8192;
+            
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+                binary += String.fromCharCode.apply(null, Array.from(chunk));
+            }
+            
+            return btoa(binary);
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        // 初始化
+        log('文件上傳調試工具已就緒', 'info');
+        log('請選擇一個PDF文件開始測試', 'info');
+    </script>
+</body>
+</html> 

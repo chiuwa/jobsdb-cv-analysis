@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>擴展數據發送調試工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9e9e9;
+            border-radius: 3px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        input, textarea {
+            width: 100%;
+            margin: 10px 0;
+            padding: 8px;
+        }
+        textarea {
+            height: 100px;
+        }
+        .split-container {
+            display: flex;
+            gap: 20px;
+        }
+        .split-section {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <h1>JobsDB 擴展數據發送調試工具</h1>
+    <p>此工具專門用於調試為什麼 N8n 只收到 15B 的數據</p>
+
+    <div class="section">
+        <h2>1. 檢查擴展當前狀態</h2>
+        <button onclick="checkExtensionStatus()">檢查擴展狀態</button>
+        <button onclick="checkStoredCV()">檢查已存儲的 CV</button>
+        <button onclick="checkApiConfig()">檢查 API 配置</button>
+        <div id="extensionStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. 模擬真實數據發送</h2>
+        <div class="split-container">
+            <div class="split-section">
+                <h3>測試數據輸入</h3>
+                <input type="file" id="testPdfFile" accept=".pdf">
+                <input type="text" id="testWebhookUrl" placeholder="N8n webhook URL" value="http://localhost:5678/webhook/jobsdb-cv-matcher/analyze-job-with-cv">
+                <textarea id="testJobData" placeholder="測試用職位資料 (JSON格式)">
+{
+  "title": "軟體工程師",
+  "company": "測試科技公司",
+  "responsibilities": [
+    "開發軟體應用",
+    "維護系統穩定性"
+  ],
+  "requirements": [
+    "熟悉JavaScript",
+    "具備React經驗"
+  ],
+  "details": {
+    "url": "https://test.com/job/123",
+    "extractedAt": "2024-01-15T10:00:00Z"
+  }
+}
+                </textarea>
+            </div>
+            <div class="split-section">
+                <h3>發送選項</h3>
+                <button onclick="testFormDataSending()">測試 FormData 發送</button>
+                <button onclick="testBinarySending()">測試 Binary 發送</button>
+                <button onclick="testExtensionMethod()">模擬擴展方法</button>
+                <button onclick="interceptExtensionCall()">攔截擴展調用</button>
+            </div>
+        </div>
+        <div id="sendingResults"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. 數據完整性檢查</h2>
+        <button onclick="validateCurrentCV()">驗證當前 CV 數據</button>
+        <button onclick="testBase64Conversion()">測試 Base64 轉換</button>
+        <button onclick="checkArrayBufferIntegrity()">檢查 ArrayBuffer 完整性</button>
+        <div id="integrityResults"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. 網絡請求調試</h2>
+        <button onclick="monitorNetworkRequests()">監控網絡請求</button>
+        <button onclick="captureRequestHeaders()">捕獲請求標頭</button>
+        <button onclick="inspectRequestBody()">檢查請求主體</button>
+        <div id="networkResults"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            element.appendChild(div);
+            element.scrollTop = element.scrollHeight;
+        }
+
+        function clearResults(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+
+        // 1. 擴展狀態檢查
+        async function checkExtensionStatus() {
+            clearResults('extensionStatus');
+            log('extensionStatus', '正在檢查擴展狀態...');
+
+            try {
+                // 檢查 chrome.storage API
+                if (typeof chrome !== 'undefined' && chrome.storage) {
+                    log('extensionStatus', '✓ Chrome 擴展環境可用');
+                    
+                    // 嘗試讀取擴展數據
+                    chrome.storage.local.get(null, (data) => {
+                        log('extensionStatus', `存儲的項目數量: ${Object.keys(data).length}`);
+                        Object.keys(data).forEach(key => {
+                            const value = data[key];
+                            const size = JSON.stringify(value).length;
+                            log('extensionStatus', `- ${key}: ${size} bytes`);
+                        });
+                    });
+                } else {
+                    log('extensionStatus', '⚠ 非擴展環境，無法訪問 chrome.storage', 'warning');
+                }
+            } catch (error) {
+                log('extensionStatus', `檢查過程出錯: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkStoredCV() {
+            clearResults('extensionStatus');
+            log('extensionStatus', '正在檢查已存儲的 CV...');
+
+            try {
+                if (typeof chrome !== 'undefined' && chrome.storage) {
+                    chrome.storage.local.get(['currentCV', 'cvFiles'], (data) => {
+                        if (data.currentCV) {
+                            const cv = data.currentCV;
+                            log('extensionStatus', `當前 CV: ${cv.name}`);
+                            log('extensionStatus', `類型: ${cv.type}`);
+                            log('extensionStatus', `大小: ${cv.size} bytes`);
+                            log('extensionStatus', `Base64 長度: ${cv.contentBase64 ? cv.contentBase64.length : 0} 字符`);
+                            
+                            // 檢查 base64 格式
+                            if (cv.contentBase64) {
+                                const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(cv.contentBase64.replace(/^data:[^;]+;base64,/, ''));
+                                log('extensionStatus', `Base64 格式有效: ${isValidBase64}`);
+                            }
+                        } else {
+                            log('extensionStatus', '沒有找到當前 CV', 'warning');
+                        }
+
+                        if (data.cvFiles) {
+                            log('extensionStatus', `存儲的 CV 文件數量: ${Object.keys(data.cvFiles).length}`);
+                        }
+                    });
+                } else {
+                    log('extensionStatus', '無法訪問擴展存儲', 'error');
+                }
+            } catch (error) {
+                log('extensionStatus', `檢查 CV 過程出錯: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkApiConfig() {
+            clearResults('extensionStatus');
+            log('extensionStatus', '正在檢查 API 配置...');
+
+            try {
+                if (typeof chrome !== 'undefined' && chrome.storage) {
+                    chrome.storage.local.get(['apiConfig'], (data) => {
+                        if (data.apiConfig) {
+                            const config = data.apiConfig;
+                            log('extensionStatus', `API URL: ${config.baseUrl || '未設置'}`);
+                            log('extensionStatus', `API Key: ${config.apiKey ? '已設置' : '未設置'}`);
+                        } else {
+                            log('extensionStatus', '沒有找到 API 配置', 'warning');
+                        }
+                    });
+                } else {
+                    log('extensionStatus', '無法訪問擴展存儲', 'error');
+                }
+            } catch (error) {
+                log('extensionStatus', `檢查 API 配置過程出錯: ${error.message}`, 'error');
+            }
+        }
+
+        // 2. 模擬數據發送
+        async function testFormDataSending() {
+            clearResults('sendingResults');
+            log('sendingResults', '測試 FormData 發送方法...');
+
+            const fileInput = document.getElementById('testPdfFile');
+            const webhookUrl = document.getElementById('testWebhookUrl').value;
+            const jobDataText = document.getElementById('testJobData').value;
+
+            if (!fileInput.files[0]) {
+                log('sendingResults', '請選擇 PDF 文件', 'error');
+                return;
+            }
+
+            if (!webhookUrl) {
+                log('sendingResults', '請輸入 webhook URL', 'error');
+                return;
+            }
+
+            try {
+                const file = fileInput.files[0];
+                let jobData;
+
+                try {
+                    jobData = JSON.parse(jobDataText);
+                } catch (e) {
+                    log('sendingResults', '職位資料 JSON 格式錯誤', 'error');
+                    return;
+                }
+
+                log('sendingResults', `開始測試 FormData 發送...`);
+                log('sendingResults', `文件: ${file.name}, 大小: ${file.size} bytes`);
+
+                const formData = new FormData();
+                formData.append('jobDetails', JSON.stringify(jobData));
+                formData.append('cvFile', file, file.name);
+                formData.append('timestamp', new Date().toISOString());
+                formData.append('source', 'debug-tool-formdata');
+
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                log('sendingResults', `回應狀態: ${response.status}`);
+
+                if (response.ok) {
+                    const result = await response.json();
+                    log('sendingResults', `✓ FormData 發送成功!`);
+                    log('sendingResults', `回應: ${JSON.stringify(result, null, 2)}`);
+                } else {
+                    const errorText = await response.text();
+                    log('sendingResults', `✗ FormData 發送失敗: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                log('sendingResults', `FormData 測試過程出錯: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBinarySending() {
+            clearResults('sendingResults');
+            log('sendingResults', '測試 Binary 發送方法...');
+
+            const fileInput = document.getElementById('testPdfFile');
+            const webhookUrl = document.getElementById('testWebhookUrl').value;
+            const jobDataText = document.getElementById('testJobData').value;
+
+            if (!fileInput.files[0]) {
+                log('sendingResults', '請選擇 PDF 文件', 'error');
+                return;
+            }
+
+            try {
+                const file = fileInput.files[0];
+                let jobData;
+
+                try {
+                    jobData = JSON.parse(jobDataText);
+                } catch (e) {
+                    log('sendingResults', '職位資料 JSON 格式錯誤', 'error');
+                    return;
+                }
+
+                log('sendingResults', `開始測試 Binary 發送...`);
+                
+                const arrayBuffer = await file.arrayBuffer();
+                log('sendingResults', `ArrayBuffer 大小: ${arrayBuffer.byteLength} bytes`);
+
+                const headers = {
+                    'Content-Type': 'application/octet-stream',
+                    'X-Job-Details': JSON.stringify(jobData),
+                    'X-CV-Filename': file.name,
+                    'X-CV-Mimetype': file.type,
+                    'X-CV-Size': arrayBuffer.byteLength.toString(),
+                    'X-Timestamp': new Date().toISOString(),
+                    'X-Source': 'debug-tool-binary'
+                };
+
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: arrayBuffer
+                });
+
+                log('sendingResults', `回應狀態: ${response.status}`);
+
+                if (response.ok) {
+                    const result = await response.json();
+                    log('sendingResults', `✓ Binary 發送成功!`);
+                    log('sendingResults', `回應: ${JSON.stringify(result, null, 2)}`);
+                } else {
+                    const errorText = await response.text();
+                    log('sendingResults', `✗ Binary 發送失敗: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                log('sendingResults', `Binary 測試過程出錯: ${error.message}`, 'error');
+            }
+        }
+
+        async function testExtensionMethod() {
+            clearResults('sendingResults');
+            log('sendingResults', '模擬擴展發送方法...');
+
+            const fileInput = document.getElementById('testPdfFile');
+            const webhookUrl = document.getElementById('testWebhookUrl').value;
+            const jobDataText = document.getElementById('testJobData').value;
+
+            if (!fileInput.files[0]) {
+                log('sendingResults', '請選擇 PDF 文件', 'error');
+                return;
+            }
+
+            try {
+                const file = fileInput.files[0];
+                let jobData;
+
+                try {
+                    jobData = JSON.parse(jobDataText);
+                } catch (e) {
+                    log('sendingResults', '職位資料 JSON 格式錯誤', 'error');
+                    return;
+                }
+
+                log('sendingResults', '開始模擬擴展流程...');
+
+                // 1. 模擬擴展讀取文件並轉換為 base64
+                const arrayBuffer = await file.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                let binary = '';
+                for (let i = 0; i < uint8Array.length; i++) {
+                    binary += String.fromCharCode(uint8Array[i]);
+                }
+                const base64 = btoa(binary);
+                
+                log('sendingResults', `1. 文件轉 base64: ${base64.length} 字符`);
+
+                // 2. 模擬從 storage 讀取並轉回 ArrayBuffer
+                const cleanBase64 = base64.replace(/^data:[^;]+;base64,/, '');
+                const decodedBinary = atob(cleanBase64);
+                const decodedArrayBuffer = new ArrayBuffer(decodedBinary.length);
+                const decodedUint8Array = new Uint8Array(decodedArrayBuffer);
+                
+                for (let i = 0; i < decodedBinary.length; i++) {
+                    decodedUint8Array[i] = decodedBinary.charCodeAt(i);
+                }
+
+                log('sendingResults', `2. base64 轉回 ArrayBuffer: ${decodedArrayBuffer.byteLength} bytes`);
+
+                // 3. 驗證數據完整性
+                if (arrayBuffer.byteLength === decodedArrayBuffer.byteLength) {
+                    log('sendingResults', '✓ 數據大小一致');
+                } else {
+                    log('sendingResults', `✗ 數據大小不一致: ${arrayBuffer.byteLength} vs ${decodedArrayBuffer.byteLength}`, 'error');
+                }
+
+                // 4. 使用 FormData 方式發送（當前擴展使用的方法）
+                const formData = new FormData();
+                formData.append('jobDetails', JSON.stringify(jobData));
+                
+                const cvBlob = new Blob([decodedArrayBuffer], { type: file.type });
+                formData.append('cvFile', cvBlob, file.name);
+                formData.append('timestamp', new Date().toISOString());
+                formData.append('source', 'debug-tool-extension-simulation');
+
+                log('sendingResults', `3. 發送 FormData (blob 大小: ${cvBlob.size} bytes)...`);
+
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                log('sendingResults', `回應狀態: ${response.status}`);
+
+                if (response.ok) {
+                    const result = await response.json();
+                    log('sendingResults', `✓ 擴展方法模擬成功!`);
+                    log('sendingResults', `回應: ${JSON.stringify(result, null, 2)}`);
+                } else {
+                    const errorText = await response.text();
+                    log('sendingResults', `✗ 擴展方法模擬失敗: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                log('sendingResults', `擴展方法測試過程出錯: ${error.message}`, 'error');
+            }
+        }
+
+        async function interceptExtensionCall() {
+            clearResults('sendingResults');
+            log('sendingResults', '準備攔截擴展調用...', 'warning');
+            log('sendingResults', '此功能需要在擴展環境中運行', 'warning');
+
+            // 重寫 fetch 函數來攔截請求
+            const originalFetch = window.fetch;
+            window.fetch = async function(...args) {
+                const [url, options] = args;
+                
+                if (url.includes('webhook') || url.includes('n8n')) {
+                    log('sendingResults', `攔截到請求: ${url}`);
+                    log('sendingResults', `方法: ${options?.method || 'GET'}`);
+                    
+                    if (options?.body) {
+                        if (options.body instanceof FormData) {
+                            log('sendingResults', '請求主體類型: FormData');
+                            // FormData 內容無法直接讀取，但可以檢查是否存在
+                        } else if (options.body instanceof ArrayBuffer) {
+                            log('sendingResults', `請求主體類型: ArrayBuffer (${options.body.byteLength} bytes)`);
+                        } else {
+                            log('sendingResults', `請求主體類型: ${typeof options.body}`);
+                            log('sendingResults', `請求主體長度: ${options.body.length || 'unknown'}`);
+                        }
+                    }
+                    
+                    if (options?.headers) {
+                        log('sendingResults', '請求標頭:');
+                        Object.entries(options.headers).forEach(([key, value]) => {
+                            log('sendingResults', `  ${key}: ${value}`);
+                        });
+                    }
+                }
+                
+                return originalFetch.apply(this, args);
+            };
+
+            log('sendingResults', '✓ 請求攔截器已設置，現在觸發擴展功能以查看請求詳情');
+        }
+
+        // 3. 數據完整性檢查
+        async function validateCurrentCV() {
+            clearResults('integrityResults');
+            log('integrityResults', '驗證當前 CV 數據...');
+
+            try {
+                if (typeof chrome !== 'undefined' && chrome.storage) {
+                    chrome.storage.local.get(['currentCV'], (data) => {
+                        if (data.currentCV) {
+                            const cv = data.currentCV;
+                            log('integrityResults', `CV 文件: ${cv.name}`);
+                            log('integrityResults', `聲明大小: ${cv.size} bytes`);
+                            log('integrityResults', `Base64 長度: ${cv.contentBase64?.length || 0} 字符`);
+
+                            if (cv.contentBase64) {
+                                // 計算實際大小
+                                const cleanBase64 = cv.contentBase64.replace(/^data:[^;]+;base64,/, '');
+                                const actualSize = (cleanBase64.length * 3) / 4;
+                                const sizeDiff = Math.abs(actualSize - cv.size);
+
+                                log('integrityResults', `計算大小: ${actualSize} bytes`);
+                                log('integrityResults', `大小差異: ${sizeDiff} bytes`);
+
+                                if (sizeDiff < 10) {
+                                    log('integrityResults', '✓ CV 數據大小一致');
+                                } else {
+                                    log('integrityResults', '⚠ CV 數據大小可能有問題', 'warning');
+                                }
+
+                                // 檢查 PDF header
+                                try {
+                                    const binary = atob(cleanBase64);
+                                    const header = binary.substring(0, 4);
+                                    if (header === '%PDF') {
+                                        log('integrityResults', '✓ PDF header 正確');
+                                    } else {
+                                        log('integrityResults', `✗ PDF header 錯誤: ${header}`, 'error');
+                                    }
+                                } catch (e) {
+                                    log('integrityResults', `✗ Base64 解碼失敗: ${e.message}`, 'error');
+                                }
+                            }
+                        } else {
+                            log('integrityResults', '沒有找到當前 CV', 'warning');
+                        }
+                    });
+                } else {
+                    log('integrityResults', '無法訪問擴展存儲', 'error');
+                }
+            } catch (error) {
+                log('integrityResults', `驗證過程出錯: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBase64Conversion() {
+            clearResults('integrityResults');
+            log('integrityResults', '測試 Base64 轉換流程...');
+
+            const fileInput = document.getElementById('testPdfFile');
+            if (!fileInput.files[0]) {
+                log('integrityResults', '請選擇 PDF 文件進行測試', 'error');
+                return;
+            }
+
+            try {
+                const file = fileInput.files[0];
+                log('integrityResults', `原始文件: ${file.name}, ${file.size} bytes`);
+
+                // 1. 讀取為 ArrayBuffer
+                const arrayBuffer = await file.arrayBuffer();
+                log('integrityResults', `1. ArrayBuffer: ${arrayBuffer.byteLength} bytes`);
+
+                // 2. 轉換為 base64
+                const uint8Array = new Uint8Array(arrayBuffer);
+                let binary = '';
+                for (let i = 0; i < uint8Array.length; i++) {
+                    binary += String.fromCharCode(uint8Array[i]);
+                }
+                const base64 = btoa(binary);
+                log('integrityResults', `2. Base64: ${base64.length} 字符`);
+
+                // 3. 模擬存儲/讀取過程
+                const storedBase64 = base64; // 模擬存儲
+                log('integrityResults', `3. 存儲的 Base64: ${storedBase64.length} 字符`);
+
+                // 4. 轉回 ArrayBuffer
+                const cleanBase64 = storedBase64.replace(/^data:[^;]+;base64,/, '');
+                const decodedBinary = atob(cleanBase64);
+                const decodedArrayBuffer = new ArrayBuffer(decodedBinary.length);
+                const decodedUint8Array = new Uint8Array(decodedArrayBuffer);
+                
+                for (let i = 0; i < decodedBinary.length; i++) {
+                    decodedUint8Array[i] = decodedBinary.charCodeAt(i);
+                }
+                log('integrityResults', `4. 解碼的 ArrayBuffer: ${decodedArrayBuffer.byteLength} bytes`);
+
+                // 5. 驗證完整性
+                if (arrayBuffer.byteLength === decodedArrayBuffer.byteLength) {
+                    log('integrityResults', '✓ 大小驗證通過');
+                    
+                    // 檢查內容
+                    const original = new Uint8Array(arrayBuffer);
+                    const decoded = new Uint8Array(decodedArrayBuffer);
+                    let isIdentical = true;
+                    
+                    for (let i = 0; i < Math.min(original.length, decoded.length); i++) {
+                        if (original[i] !== decoded[i]) {
+                            isIdentical = false;
+                            log('integrityResults', `✗ 內容不匹配於位置 ${i}: ${original[i]} vs ${decoded[i]}`, 'error');
+                            break;
+                        }
+                    }
+                    
+                    if (isIdentical) {
+                        log('integrityResults', '✓ 內容完整性驗證通過');
+                    }
+                } else {
+                    log('integrityResults', `✗ 大小不匹配: ${arrayBuffer.byteLength} vs ${decodedArrayBuffer.byteLength}`, 'error');
+                }
+
+            } catch (error) {
+                log('integrityResults', `Base64 轉換測試失敗: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkArrayBufferIntegrity() {
+            clearResults('integrityResults');
+            log('integrityResults', '檢查 ArrayBuffer 處理完整性...');
+
+            if (typeof chrome === 'undefined' || !chrome.storage) {
+                log('integrityResults', '需要在擴展環境中運行此測試', 'error');
+                return;
+            }
+
+            try {
+                chrome.storage.local.get(['currentCV'], async (data) => {
+                    if (!data.currentCV || !data.currentCV.contentBase64) {
+                        log('integrityResults', '沒有找到可測試的 CV 數據', 'error');
+                        return;
+                    }
+
+                    const cv = data.currentCV;
+                    log('integrityResults', `測試 CV: ${cv.name}`);
+
+                    // 模擬擴展的轉換過程
+                    try {
+                        const cleanBase64 = cv.contentBase64.replace(/^data:[^;]+;base64,/, '');
+                        const binary = atob(cleanBase64);
+                        const arrayBuffer = new ArrayBuffer(binary.length);
+                        const uint8Array = new Uint8Array(arrayBuffer);
+                        
+                        for (let i = 0; i < binary.length; i++) {
+                            uint8Array[i] = binary.charCodeAt(i);
+                        }
+
+                        log('integrityResults', `✓ ArrayBuffer 轉換成功: ${arrayBuffer.byteLength} bytes`);
+
+                        // 檢查 PDF header
+                        if (arrayBuffer.byteLength >= 4) {
+                            const headerView = new Uint8Array(arrayBuffer, 0, 4);
+                            const header = String.fromCharCode(...headerView);
+                            
+                            if (header === '%PDF') {
+                                log('integrityResults', '✓ PDF header 驗證通過');
+                            } else {
+                                log('integrityResults', `✗ PDF header 錯誤: ${header}`, 'error');
+                            }
+                        }
+
+                        // 檢查文件完整性
+                        if (Math.abs(arrayBuffer.byteLength - cv.size) < 10) {
+                            log('integrityResults', '✓ 文件大小一致');
+                        } else {
+                            log('integrityResults', `⚠ 文件大小不一致: ${arrayBuffer.byteLength} vs ${cv.size}`, 'warning');
+                        }
+
+                    } catch (error) {
+                        log('integrityResults', `ArrayBuffer 處理失敗: ${error.message}`, 'error');
+                    }
+                });
+
+            } catch (error) {
+                log('integrityResults', `完整性檢查失敗: ${error.message}`, 'error');
+            }
+        }
+
+        // 4. 網絡請求調試
+        function monitorNetworkRequests() {
+            clearResults('networkResults');
+            log('networkResults', '開始監控網絡請求...');
+
+            // 使用 Performance Observer API
+            if ('PerformanceObserver' in window) {
+                const observer = new PerformanceObserver((list) => {
+                    for (const entry of list.getEntries()) {
+                        if (entry.name.includes('webhook') || entry.name.includes('n8n')) {
+                            log('networkResults', `檢測到請求: ${entry.name}`);
+                            log('networkResults', `響應時間: ${entry.responseEnd - entry.responseStart}ms`);
+                            log('networkResults', `傳輸大小: ${entry.transferSize || 'unknown'} bytes`);
+                        }
+                    }
+                });
+                observer.observe({ entryTypes: ['navigation', 'resource'] });
+                log('networkResults', '✓ 網絡監控已啟動');
+            } else {
+                log('networkResults', '此瀏覽器不支持 PerformanceObserver', 'warning');
+            }
+        }
+
+        function captureRequestHeaders() {
+            clearResults('networkResults');
+            log('networkResults', '設置請求標頭捕獲器...');
+
+            // 攔截 XMLHttpRequest
+            const originalXHROpen = XMLHttpRequest.prototype.open;
+            const originalXHRSend = XMLHttpRequest.prototype.send;
+
+            XMLHttpRequest.prototype.open = function(method, url) {
+                this._method = method;
+                this._url = url;
+                return originalXHROpen.apply(this, arguments);
+            };
+
+            XMLHttpRequest.prototype.send = function(data) {
+                if (this._url && (this._url.includes('webhook') || this._url.includes('n8n'))) {
+                    log('networkResults', `XHR 請求: ${this._method} ${this._url}`);
+                    if (data) {
+                        log('networkResults', `數據類型: ${data.constructor.name}`);
+                        if (data instanceof FormData) {
+                            log('networkResults', '數據: FormData (無法檢查內容)');
+                        } else {
+                            log('networkResults', `數據大小: ${data.length || data.byteLength || 'unknown'} bytes`);
+                        }
+                    }
+                }
+                return originalXHRSend.apply(this, arguments);
+            };
+
+            log('networkResults', '✓ XHR 攔截器已設置');
+        }
+
+        function inspectRequestBody() {
+            clearResults('networkResults');
+            log('networkResults', '設置請求主體檢查器...');
+
+            const originalFetch = window.fetch;
+            window.fetch = async function(url, options) {
+                if (url.includes('webhook') || url.includes('n8n')) {
+                    log('networkResults', `Fetch 請求: ${url}`);
+                    
+                    if (options && options.body) {
+                        log('networkResults', `主體類型: ${options.body.constructor.name}`);
+                        
+                        if (options.body instanceof FormData) {
+                            log('networkResults', '主體: FormData');
+                            // 嘗試檢查 FormData 大小（間接方法）
+                            const entries = [];
+                            for (let pair of options.body.entries()) {
+                                entries.push(pair[0]);
+                            }
+                            log('networkResults', `FormData 鍵: ${entries.join(', ')}`);
+                        } else if (options.body instanceof ArrayBuffer) {
+                            log('networkResults', `主體大小: ${options.body.byteLength} bytes`);
+                            
+                            // 檢查前幾個字節
+                            const view = new Uint8Array(options.body, 0, Math.min(10, options.body.byteLength));
+                            const preview = Array.from(view).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                            log('networkResults', `前 10 字節: ${preview}`);
+                        } else if (typeof options.body === 'string') {
+                            log('networkResults', `主體長度: ${options.body.length} 字符`);
+                            log('networkResults', `主體預覽: ${options.body.substring(0, 100)}...`);
+                        }
+                    }
+                }
+                
+                return originalFetch.apply(this, arguments);
+            };
+
+            log('networkResults', '✓ Fetch 攔截器已設置');
+        }
+
+        // 頁面載入時的初始檢查
+        window.addEventListener('load', () => {
+            log('extensionStatus', '調試工具已載入，準備檢查擴展狀態...');
+            checkExtensionStatus();
+        });
+    </script>
+</body>
+</html> 

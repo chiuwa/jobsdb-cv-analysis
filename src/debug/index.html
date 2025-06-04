@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Debug Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007cba;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        .info {
+            color: #0066cc;
+            background: #e6f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .error {
+            color: red;
+            background: #ffe6e6;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        #debug-content {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 CV Debug Tool</h1>
+        
+        <div class="info">
+            這個工具可以幫助檢查和調試CV存儲問題。點擊下方按鈕開始檢查。
+        </div>
+
+        <button onclick="checkStorageData()">檢查存儲數據</button>
+        <button onclick="openDebugTool()">開啟完整調試工具</button>
+        <button onclick="clearStorage()">清除所有存儲</button>
+
+        <div id="debug-content"></div>
+    </div>
+
+    <script>
+        async function checkStorageData() {
+            try {
+                const result = await chrome.storage.local.get(null);
+                
+                let html = '<h3>存儲檢查結果：</h3>';
+                
+                if (result.cvList) {
+                    html += `<p><strong>CV數量:</strong> ${result.cvList.length}</p>`;
+                    
+                    let totalDeclaredSize = 0;
+                    let totalEstimatedSize = 0;
+                    
+                    result.cvList.forEach(cv => {
+                        const declaredSize = Number(cv.size) || 0;
+                        const base64Length = cv.contentBase64 ? cv.contentBase64.length : 0;
+                        const estimatedSize = base64Length > 0 ? Math.floor(base64Length * 3 / 4) : 0;
+                        
+                        totalDeclaredSize += declaredSize;
+                        totalEstimatedSize += estimatedSize;
+                        
+                        html += `<div style="border: 1px solid #ddd; margin: 10px 0; padding: 10px;">`;
+                        html += `<strong>${cv.name}</strong><br>`;
+                        html += `聲明大小: <span style="color: ${declaredSize === 0 ? 'red' : 'green'}">${declaredSize} bytes</span><br>`;
+                        html += `估算大小: ${estimatedSize} bytes<br>`;
+                        html += `Base64長度: ${base64Length}<br>`;
+                        html += `有內容: ${!!cv.contentBase64 ? '是' : '否'}<br>`;
+                        html += `</div>`;
+                    });
+                    
+                    html += `<p><strong>總聲明大小:</strong> <span style="color: ${totalDeclaredSize === 0 ? 'red' : 'green'}">${totalDeclaredSize} bytes</span></p>`;
+                    html += `<p><strong>總估算大小:</strong> ${totalEstimatedSize} bytes</p>`;
+                } else {
+                    html += '<p>沒有找到CV數據</p>';
+                }
+                
+                if (result.currentCV) {
+                    const cv = result.currentCV;
+                    const declaredSize = Number(cv.size) || 0;
+                    const base64Length = cv.contentBase64 ? cv.contentBase64.length : 0;
+                    const estimatedSize = base64Length > 0 ? Math.floor(base64Length * 3 / 4) : 0;
+                    
+                    html += '<h4>當前CV:</h4>';
+                    html += `<p>名稱: ${cv.name}</p>`;
+                    html += `<p>聲明大小: <span style="color: ${declaredSize === 0 ? 'red' : 'green'}">${declaredSize} bytes</span></p>`;
+                    html += `<p>估算大小: ${estimatedSize} bytes</p>`;
+                }
+                
+                document.getElementById('debug-content').innerHTML = html;
+                
+            } catch (error) {
+                document.getElementById('debug-content').innerHTML = 
+                    `<div class="error">檢查失敗: ${error.message}</div>`;
+            }
+        }
+
+        function openDebugTool() {
+            window.open('../debug-storage-check.html', '_blank', 'width=900,height=700');
+        }
+
+        async function clearStorage() {
+            if (!confirm('確定要清除所有存儲數據嗎？這將刪除所有CV和設定。')) {
+                return;
+            }
+            
+            try {
+                await chrome.storage.local.clear();
+                document.getElementById('debug-content').innerHTML = 
+                    '<div class="info">所有存儲數據已清除</div>';
+            } catch (error) {
+                document.getElementById('debug-content').innerHTML = 
+                    `<div class="error">清除失敗: ${error.message}</div>`;
+            }
+        }
+
+        // 自動檢查存儲
+        window.addEventListener('load', () => {
+            setTimeout(checkStorageData, 500);
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,60 @@
+{
+  "name": "jobsdb-cv-analysis",
+  "version": "1.0.0",
+  "description": "Chrome extension for JobsDB job extraction and CV matching with AI analysis",
+  "author": "chiuwa",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chiuwa/jobsdb-cv-analysis.git"
+  },
+  "keywords": [
+    "chrome-extension",
+    "jobsdb",
+    "cv-matching",
+    "ai-analysis",
+    "job-search",
+    "n8n",
+    "automation"
+  ],
+  "scripts": {
+    "build": "echo 'Building extension...' && npm run validate",
+    "validate": "node scripts/validate-manifest.js",
+    "lint": "echo 'Linting code...'",
+    "test": "echo 'Running tests...'",
+    "dev": "echo 'Development mode - Load extension in Chrome manually'",
+    "zip": "node scripts/create-zip.js",
+    "clean": "rimraf dist/ *.zip"
+  },
+  "devDependencies": {
+    "rimraf": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "browserslist": [
+    "last 2 Chrome versions"
+  ],
+  "manifest": {
+    "version": 3,
+    "permissions": [
+      "activeTab",
+      "storage",
+      "scripting"
+    ],
+    "host_permissions": [
+      "https://hk.jobsdb.com/*",
+      "https://tw.jobsdb.com/*",
+      "https://sg.jobsdb.com/*"
+    ]
+  },
+  "config": {
+    "supportedFileTypes": [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain"
+    ],
+    "maxFileSize": "10MB"
+  }
+} 

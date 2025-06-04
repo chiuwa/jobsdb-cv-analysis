@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Base64 驗證工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #e9e9e9;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF Base64 驗證工具</h1>
+    <p>此工具可以幫助測試 PDF 文件的 base64 編碼和解碼，驗證文件完整性。</p>
+
+    <div class="section">
+        <h2>1. 上傳 PDF 文件進行編碼測試</h2>
+        <input type="file" id="pdfFile" accept=".pdf">
+        <button onclick="testPdfEncoding()">測試編碼</button>
+        <div id="encodingResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Base64 解碼測試</h2>
+        <p>貼上 base64 字符串來測試解碼：</p>
+        <textarea id="base64Input" placeholder="貼上 base64 字符串..."></textarea>
+        <button onclick="testPdfDecoding()">測試解碼並下載</button>
+        <div id="decodingResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. 模擬擴展編碼流程</h2>
+        <input type="file" id="simulateFile" accept=".pdf">
+        <button onclick="simulateExtensionFlow()">模擬擴展流程</button>
+        <div id="simulationResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. 測試Binary Upload方法</h2>
+        <input type="file" id="binaryUploadFile" accept=".pdf">
+        <input type="text" id="testWebhookUrl" placeholder="輸入N8n webhook URL" style="width: 100%; margin: 10px 0;">
+        <button onclick="testBinaryUpload()">測試Binary Upload到N8n</button>
+        <div id="binaryUploadResult"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : 'success'}`;
+            div.textContent = message;
+            element.appendChild(div);
+        }
+
+        function clearResults(elementId) {
+            document.getElementById(elementId).innerHTML = '';
+        }
+
+        async function testPdfEncoding() {
+            clearResults('encodingResult');
+            const fileInput = document.getElementById('pdfFile');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                log('encodingResult', '請選擇一個 PDF 文件', true);
+                return;
+            }
+
+            if (file.type !== 'application/pdf') {
+                log('encodingResult', '請選擇 PDF 文件', true);
+                return;
+            }
+
+            try {
+                log('encodingResult', `開始處理文件: ${file.name}, 大小: ${file.size} bytes`);
+
+                // 讀取為 ArrayBuffer
+                const arrayBuffer = await file.arrayBuffer();
+                log('encodingResult', `ArrayBuffer 大小: ${arrayBuffer.byteLength} bytes`);
+
+                // 轉換為 base64
+                const uint8Array = new Uint8Array(arrayBuffer);
+                let binary = '';
+                for (let i = 0; i < uint8Array.length; i++) {
+                    binary += String.fromCharCode(uint8Array[i]);
+                }
+                const base64 = btoa(binary);
+                log('encodingResult', `Base64 編碼完成, 長度: ${base64.length} 字符`);
+
+                // 驗證 PDF header
+                const pdfHeader = binary.substring(0, 4);
+                if (pdfHeader === '%PDF') {
+                    log('encodingResult', '✓ PDF 文件格式正確');
+                } else {
+                    log('encodingResult', '⚠ PDF 文件格式可能有問題', true);
+                }
+
+                // 測試解碼
+                const decodedBinary = atob(base64);
+                if (decodedBinary.length === binary.length) {
+                    log('encodingResult', '✓ Base64 編碼/解碼測試通過');
+                } else {
+                    log('encodingResult', '✗ Base64 編碼/解碼測試失敗', true);
+                }
+
+                // 顯示 base64 預覽
+                const preview = base64.substring(0, 100) + '...';
+                log('encodingResult', `Base64 預覽: ${preview}`);
+
+            } catch (error) {
+                log('encodingResult', `編碼過程出錯: ${error.message}`, true);
+            }
+        }
+
+        async function testPdfDecoding() {
+            clearResults('decodingResult');
+            const base64Input = document.getElementById('base64Input').value.trim();
+
+            if (!base64Input) {
+                log('decodingResult', '請輸入 base64 字符串', true);
+                return;
+            }
+
+            try {
+                // 清理 base64 字符串
+                const cleanBase64 = base64Input.replace(/^data:[^;]+;base64,/, '');
+                log('decodingResult', `原始 base64 長度: ${base64Input.length}`);
+                log('decodingResult', `清理後 base64 長度: ${cleanBase64.length}`);
+
+                // 驗證 base64 格式
+                if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanBase64)) {
+                    log('decodingResult', '⚠ Base64 格式可能不正確', true);
+                }
+
+                // 解碼
+                const binary = atob(cleanBase64);
+                log('decodingResult', `解碼後二進制長度: ${binary.length} bytes`);
+
+                // 檢查 PDF header
+                const pdfHeader = binary.substring(0, 4);
+                if (pdfHeader === '%PDF') {
+                    log('decodingResult', '✓ PDF 文件格式正確');
+                } else {
+                    log('decodingResult', `⚠ PDF header 不正確: ${pdfHeader}`, true);
+                }
+
+                // 創建並下載文件
+                const arrayBuffer = new ArrayBuffer(binary.length);
+                const uint8Array = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < binary.length; i++) {
+                    uint8Array[i] = binary.charCodeAt(i);
+                }
+
+                const blob = new Blob([uint8Array], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'decoded-test.pdf';
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                log('decodingResult', '✓ PDF 文件已下載，請檢查是否能正常打開');
+
+            } catch (error) {
+                log('decodingResult', `解碼過程出錯: ${error.message}`, true);
+            }
+        }
+
+        async function simulateExtensionFlow() {
+            clearResults('simulationResult');
+            const fileInput = document.getElementById('simulateFile');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                log('simulationResult', '請選擇一個 PDF 文件', true);
+                return;
+            }
+
+            try {
+                log('simulationResult', '=== 模擬擴展編碼流程 ===');
+                
+                // 1. 模擬擴展讀取文件
+                const arrayBuffer = await file.arrayBuffer();
+                log('simulationResult', `1. 擴展讀取 ArrayBuffer: ${arrayBuffer.byteLength} bytes`);
+
+                // 2. 模擬轉換為 base64 (CVService.saveCVInfo)
+                const uint8Array = new Uint8Array(arrayBuffer);
+                let binary = '';
+                for (let i = 0; i < uint8Array.length; i++) {
+                    binary += String.fromCharCode(uint8Array[i]);
+                }
+                const base64 = btoa(binary);
+                log('simulationResult', `2. 轉換為 base64: ${base64.length} 字符`);
+
+                // 3. 模擬從 storage 讀取 (serviceWorker.handleAnalyzeMatch)
+                log('simulationResult', '3. 模擬從 storage 讀取 base64...');
+
+                // 4. 模擬 base64 轉回 ArrayBuffer
+                const cleanBase64 = base64.replace(/^data:[^;]+;base64,/, '');
+                
+                if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanBase64)) {
+                    log('simulationResult', '⚠ Base64 格式驗證失敗', true);
+                } else {
+                    log('simulationResult', '✓ Base64 格式驗證通過');
+                }
+
+                const decodedBinary = atob(cleanBase64);
+                const decodedArrayBuffer = new ArrayBuffer(decodedBinary.length);
+                const decodedUint8Array = new Uint8Array(decodedArrayBuffer);
+                
+                for (let i = 0; i < decodedBinary.length; i++) {
+                    decodedUint8Array[i] = decodedBinary.charCodeAt(i);
+                }
+                
+                log('simulationResult', `4. 轉回 ArrayBuffer: ${decodedArrayBuffer.byteLength} bytes`);
+
+                // 5. 驗證完整性
+                if (arrayBuffer.byteLength === decodedArrayBuffer.byteLength) {
+                    log('simulationResult', '✓ 文件大小驗證通過');
+                    
+                    // 比較內容
+                    const original = new Uint8Array(arrayBuffer);
+                    const decoded = new Uint8Array(decodedArrayBuffer);
+                    
+                    let isIdentical = true;
+                    for (let i = 0; i < original.length; i++) {
+                        if (original[i] !== decoded[i]) {
+                            isIdentical = false;
+                            break;
+                        }
+                    }
+                    
+                    if (isIdentical) {
+                        log('simulationResult', '✓ 文件內容完全一致 - 編碼流程正確！');
+                    } else {
+                        log('simulationResult', '✗ 文件內容不一致 - 編碼流程有問題', true);
+                    }
+                } else {
+                    log('simulationResult', '✗ 文件大小不一致 - 編碼流程有問題', true);
+                }
+
+                // 6. 創建測試下載
+                const testBlob = new Blob([decodedArrayBuffer], { type: 'application/pdf' });
+                const testUrl = URL.createObjectURL(testBlob);
+                
+                const a = document.createElement('a');
+                a.href = testUrl;
+                a.download = 'simulation-test.pdf';
+                a.click();
+                
+                URL.revokeObjectURL(testUrl);
+                log('simulationResult', '6. 測試文件已下載，請檢查是否能正常打開');
+
+            } catch (error) {
+                log('simulationResult', `模擬過程出錯: ${error.message}`, true);
+            }
+        }
+
+        async function testBinaryUpload() {
+            clearResults('binaryUploadResult');
+            const fileInput = document.getElementById('binaryUploadFile');
+            const webhookUrl = document.getElementById('testWebhookUrl').value.trim();
+            const file = fileInput.files[0];
+
+            if (!file) {
+                log('binaryUploadResult', '請選擇一個 PDF 文件', true);
+                return;
+            }
+
+            if (!webhookUrl) {
+                log('binaryUploadResult', '請輸入 N8n webhook URL', true);
+                return;
+            }
+
+            try {
+                log('binaryUploadResult', '=== 測試 Direct Binary Processing 方法 ===');
+                log('binaryUploadResult', `文件: ${file.name}, 大小: ${file.size} bytes`);
+                log('binaryUploadResult', `目標URL: ${webhookUrl}`);
+
+                // 讀取文件為 ArrayBuffer
+                const arrayBuffer = await file.arrayBuffer();
+                log('binaryUploadResult', `文件讀取完成: ${arrayBuffer.byteLength} bytes`);
+
+                // 驗證 PDF header
+                const uint8Array = new Uint8Array(arrayBuffer);
+                let pdfHeaderBytes = '';
+                for (let i = 0; i < Math.min(4, uint8Array.length); i++) {
+                    pdfHeaderBytes += String.fromCharCode(uint8Array[i]);
+                }
+                
+                if (pdfHeaderBytes === '%PDF') {
+                    log('binaryUploadResult', '✓ PDF header 驗證通過: ' + pdfHeaderBytes);
+                } else {
+                    log('binaryUploadResult', '⚠ PDF header 可能有問題: ' + pdfHeaderBytes, true);
+                }
+
+                // 準備測試用的 job data
+                const testJobData = {
+                    title: "軟體工程師 - Direct Binary Test",
+                    company: "測試科技公司",
+                    responsibilities: [
+                        "開發和維護軟體應用程式",
+                        "測試 direct binary processing 功能",
+                        "優化 PDF 處理流程"
+                    ],
+                    requirements: [
+                        "PDF 格式正確處理",
+                        "二進制數據完整性",
+                        "N8n 工作流程配置正確"
+                    ],
+                    details: {
+                        url: "https://test.com/job/direct-binary-123",
+                        extractedAt: new Date().toISOString()
+                    }
+                };
+
+                // 準備請求頭
+                const headers = {
+                    'Content-Type': 'application/octet-stream',
+                    'X-Job-Details': JSON.stringify(testJobData),
+                    'X-CV-Filename': file.name,
+                    'X-CV-Mimetype': file.type,
+                    'X-CV-Size': arrayBuffer.byteLength.toString(),
+                    'X-Timestamp': new Date().toISOString(),
+                    'X-Source': 'direct-binary-test-tool'
+                };
+
+                log('binaryUploadResult', '準備發送 direct binary 請求...');
+                log('binaryUploadResult', `Headers 數量: ${Object.keys(headers).length}`);
+
+                // 發送請求
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: arrayBuffer
+                });
+
+                log('binaryUploadResult', `請求發送完成，狀態: ${response.status}`);
+
+                if (response.ok) {
+                    const result = await response.json();
+                    log('binaryUploadResult', '✓ Direct Binary Processing 測試成功！');
+                    
+                    // 顯示詳細的調試信息
+                    if (result.debug) {
+                        log('binaryUploadResult', `N8n 接收狀態:`);
+                        log('binaryUploadResult', `- 上傳方法: ${result.debug.uploadMethod}`);
+                        log('binaryUploadResult', `- 有二進制數據: ${result.debug.bodyInfo?.hasBinaryData}`);
+                        log('binaryUploadResult', `- Body 長度: ${result.debug.bodyInfo?.bodyLength} bytes`);
+                        log('binaryUploadResult', `- CV 文件名: ${result.debug.headers?.cvFilename}`);
+                        log('binaryUploadResult', `- CV MIME 類型: ${result.debug.headers?.cvMimetype}`);
+                        
+                        if (result.debug.pdfProcessing) {
+                            log('binaryUploadResult', `PDF 處理結果:`);
+                            log('binaryUploadResult', `- 二進制數據設置: ${result.debug.pdfProcessing.binaryDataSet}`);
+                            log('binaryUploadResult', `- 文字提取成功: ${result.debug.pdfProcessing.extractionSuccess}`);
+                            log('binaryUploadResult', `- 提取文字長度: ${result.debug.pdfProcessing.textLength} 字符`);
+                            
+                            if (result.debug.pdfProcessing.textPreview) {
+                                log('binaryUploadResult', `- 文字預覽: ${result.debug.pdfProcessing.textPreview.substring(0, 100)}...`);
+                            }
+                        }
+                    }
+                    
+                    if (result.analysis) {
+                        log('binaryUploadResult', `分析結果:`);
+                        log('binaryUploadResult', `- 匹配分數: ${result.analysis.matchScore}`);
+                        log('binaryUploadResult', `- PDF 處理結果: ${result.analysis.pdfProcessingResult}`);
+                        log('binaryUploadResult', `- 提取文字長度: ${result.analysis.extractedTextLength} 字符`);
+                    }
+                    
+                    log('binaryUploadResult', `完整回應: ${JSON.stringify(result, null, 2)}`);
+                } else {
+                    const errorText = await response.text();
+                    log('binaryUploadResult', `✗ 請求失敗: ${response.status} ${response.statusText}`, true);
+                    log('binaryUploadResult', `錯誤詳情: ${errorText}`, true);
+                }
+
+            } catch (error) {
+                log('binaryUploadResult', `Direct Binary Processing 測試失敗: ${error.message}`, true);
+                console.error('Binary upload error:', error);
+            }
+        }
+    </script>
+</body>
+</html> 
