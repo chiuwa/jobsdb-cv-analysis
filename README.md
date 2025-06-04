@@ -109,8 +109,9 @@ cd jobsdb-cv-analysis
 ## 🔧 N8n工作流程設定
 
 ### 基本工作流程
-
-
+sample : **https://github.com/chiuwa/jobsdb-cv-analysis/blob/main/n8n-test-workflow.json**
+![image](https://github.com/user-attachments/assets/628b7474-d2c1-4e50-8483-92fe1ffadf76)
+你可以使用其他任意AI mdeol 
 
 
 ## 📖 使用指南
