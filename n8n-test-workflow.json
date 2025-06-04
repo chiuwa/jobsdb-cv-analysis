@@ -1,6 +1,313 @@
 {
-  "name": "JobsDB CV Matcher - FormData Processing",
+  "name": "HR by url",
   "nodes": [
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "cvFile",
+        "options": {}
+      },
+      "id": "3d6ae7c7-0b4e-47e1-a512-d3b7b420a43d",
+      "name": "Extract from File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "position": [
+        400,
+        480
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.text }}",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "Educational qualification",
+              "description": "Summary of your academic career. Focus on your high school and university studies. Summarize in 100 words maximum and also include your grade if applicable.",
+              "required": true
+            },
+            {
+              "name": "Job History",
+              "description": "Work history summary. Focus on your most recent work experiences. Summarize in 150 words maximum",
+              "required": true
+            },
+            {
+              "name": "Skills",
+              "description": "Extract the candidate’s technical skills. What software and frameworks they are proficient in. Make a bulleted list.",
+              "required": true
+            }
+          ]
+        },
+        "options": {
+          "systemPromptTemplate": "You are an expert extraction algorithm.\nOnly extract relevant information from the text.\nIf you do not know the value of an attribute asked to extract, you may omit the attribute's value."
+        }
+      },
+      "id": "8bd17cac-ab29-4e08-b7da-b358ca51e16c",
+      "name": "Qualifications",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "position": [
+        720,
+        580
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "options": {
+          "summarizationMethodAndPrompts": {
+            "values": {
+              "combineMapPrompt": "=請簡單概括以下內容： \n城市：{{ $json.output.city }} \n出生日期：{{ $json.output.birthdate }} \n學歷：{{ $json.output[\"Educational requirement\"] }} \n工作經驗：{{ $json.output[\"Job History\"] }} \n技能：{{ $json.output.Skills }} \n\n請控制在 200 字以內。請簡潔明了，以口語化的方式進行描述。",
+              "prompt": "=Write a concise summary of the following:\n\nCity: {{ $json.output.city }}\nBirthdate: {{ $json.output.birthdate }}\nEducational qualification: {{ $json.output[\"Educational qualification\"] }}\nJob History: {{ $json.output[\"Job History\"] }}\nSkills: {{ $json.output.Skills }}\n\nUse 200 words or less. Be concise and conversational."
+            }
+          }
+        }
+      },
+      "id": "aae0b2fc-e9c2-4b27-8b93-ed0acf831261",
+      "name": "Summarization Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainSummarization",
+      "position": [
+        1460,
+        460
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "6068948f-e83a-480f-bdf3-897e409448bb",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        1220,
+        460
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a3d049b0-5a70-4e7b-a6f2-81447da5282a",
+              "name": "profile_wanted",
+              "type": "string",
+              "value": "={{ $('Webhook').item.json.body.jobDetails }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5286d6f5-7b2b-489b-9991-3b01a50d93ae",
+      "name": "Profile Wanted",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1860,
+        140
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"vote\": {\n\t\t\t\"type\": \"string\"\n\t\t},\n\t\t\"consideration\": {\n\t\t\t\"type\": \"string\"\n\t\t}\n\t}\n}"
+      },
+      "id": "8df73e0f-af62-4661-bb4c-0fedaf1ff86b",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        2280,
+        660
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=請用專業且易懂的中文進行分析，確保資訊具體且可操作。\n所有結果都需要用中文回覆.\n\nProfilo ricercato:\n{{ $json.profile_wanted }}\n\nCandidato:\n{{ $('Summarization Chain').item.json.response.text }}\n\nEducational qualification: {{ $('Merge').item.json.output['Educational qualification'] }}\n\nJob History: {{ $('Merge').item.json.output['Job History'] }}\n\nSkills: {{ $('Merge').item.json.output.Skills }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=您是一位資深的人力資源專家和人才評估顧問。所有結果都需要用中文回覆.請根據提供的職位要求和候選人CV，進行全面且專業的匹配度評估。\n\n**評估要求：**\n1. 給出 0% 到 100% 的精確評分,，其中 0 表示候選人完全一點都不符合要求，50以上代表都合適去應徵,而 100 表示他是十分理想的候選人\n2. 提供詳細的結構化分析報告\n\n**回應格式（請嚴格按照以下格式）：**\n\n**評分：** [0-100]%\n\n**優勢：**\n* **學歷匹配：** [具體說明教育背景如何符合要求]\n* **經驗符合：** [詳細分析工作經驗的相關性和深度]\n* **技能配對：** [列出匹配的核心技能和專業能力]\n* **職位適配：** [說明候選人如何適合此職位]\n* **額外加分：** [任何超出基本要求的優勢]\n\n**潛在的考慮點/需要進一步確認：**\n* **技能缺口：** [指出可能缺失的技能或經驗]\n* **經驗不足：** [分析哪些方面的經驗可能需要加強]\n* **未明確提及：** [簡歷中未明確展示但可能具備的能力]\n* **培訓需求：** [建議的學習或培訓方向]\n\n**詳細考量：**\n[提供 2-3 段詳細分析，包括：]\n- 整體匹配度的綜合評估\n- 候選人最突出的3個優勢\n- 最需要關注的2個考慮點\n- 對於此職位的適合度建議\n\n**技能匹配明細：**\n* 核心技能匹配度：[X/Y] ([百分比])\n* 技術能力符合度：[具體說明]\n* 軟技能評估：[溝通、領導、解決問題等能力分析]\n\n**招聘建議：**\n* **面試重點：** [建議面試時重點確認的方面]\n* **薪資建議：** [根據經驗和技能的薪資範圍建議]\n* **入職培訓：** [建議的入職培訓重點]\n\n請用專業且易懂的中文進行分析，確保資訊具體且可操作。\n所有結果都需要用中文回覆.\n\n如果是0%都需要用中文解釋"
+            }
+          ]
+        }
+      },
+      "id": "2481a7a9-c5ff-4d22-b7f3-cd11600248d5",
+      "name": "HR Expert",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        2120,
+        460
+      ],
+      "typeVersion": 1.5,
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.text }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"telephone\": {\n\t\t\t\"type\": \"string\"\n\t\t},\n      \"city\": {\n\t\t\t\"type\": \"string\"\n\t\t},\n      \"birthdate\": {\n\t\t\t\"type\": \"string\"\n\t\t}\n\t}\n}",
+        "options": {
+          "systemPromptTemplate": "You are an expert extraction algorithm.\nOnly extract relevant information from the text.\nIf you do not know the value of an attribute asked to extract, you may omit the attribute's value."
+        }
+      },
+      "id": "0c8ef401-fc8e-48a8-abc2-0bc277e61c84",
+      "name": "Personal Data",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "position": [
+        720,
+        400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "llama-4-scout-17b-16e-instruct",
+          "mode": "list",
+          "cachedResultName": "llama-4-scout-17b-16e-instruct"
+        },
+        "options": {}
+      },
+      "id": "72e1ede4-dc0b-48ff-9df0-c09a2d95ec34",
+      "name": "OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "position": [
+        1440,
+        880
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "iKsNJ61Z1ymNQ2Zw",
+          "name": "cerebras"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "The CV is uploaded by api ",
+        "height": 220,
+        "width": 300
+      },
+      "id": "d7e64941-d98f-4ba2-9981-51685d48602d",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        320,
+        420
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "The essential information for evaluating the candidate is collected in two different chains",
+        "height": 440,
+        "width": 360
+      },
+      "id": "c6b19686-d997-4ad7-b432-8656cf27dd43",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        680,
+        300
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "Summary of relevant information useful for classifying the candidate",
+        "height": 240,
+        "width": 320
+      },
+      "id": "58f10b98-449d-4efc-b3fc-4f5f6c9d2fd2",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1420,
+        380
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "Characteristics of the profile sought by the company that intends to hire the candidate",
+        "height": 240,
+        "width": 220
+      },
+      "id": "af71a874-9d43-4251-b96d-2ea42f204bb6",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1800,
+        60
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "Candidate evaluation with vote and considerations of the HR agent relating the profile sought with the candidate's skills",
+        "height": 240,
+        "width": 360
+      },
+      "id": "2812b926-3f02-4e28-8eb8-58bbb3f7dad3",
+      "name": "Sticky Note5",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2060,
+        380
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash-lite-001",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1580,
+        880
+      ],
+      "id": "79013755-6ecc-4858-9bfa-7e4bd451915f",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "f1XODGeDprMmpUIs",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-4-maverick:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1700,
+        880
+      ],
+      "id": "67eac8de-a35e-4918-9304-179f3484b5eb",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "gmlMMO0dgAOfq5F7",
+          "name": "OpenRouter account 2"
+        }
+      }
+    },
     {
       "parameters": {
         "httpMethod": "POST",
@@ -8,208 +315,171 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "webhook-node",
-      "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [240, 300],
-      "webhookId": "jobsdb-cv-matcher"
+      "typeVersion": 2,
+      "position": [
+        20,
+        480
+      ],
+      "id": "6df5b210-2212-4056-bb82-cce44bf9a56d",
+      "name": "Webhook",
+      "webhookId": "2ada35e8-6729-4092-858c-b97c3da71cda"
     },
     {
       "parameters": {
-        "keepOnlySet": false,
-        "values": {
-          "string": [
-            {
-              "name": "jobDetailsRaw",
-              "value": "={{ $json.jobDetails || 'No job details' }}"
-            },
-            {
-              "name": "timestamp",
-              "value": "={{ $json.timestamp || 'No timestamp' }}"
-            },
-            {
-              "name": "source",
-              "value": "={{ $json.source || 'No source' }}"
-            },
-            {
-              "name": "cvFileName",
-              "value": "={{ $binary.cvFile?.fileName || 'No CV file' }}"
-            },
-            {
-              "name": "cvFileSize",
-              "value": "={{ $binary.cvFile?.fileSize || 0 }}"
-            },
-            {
-              "name": "cvMimeType",
-              "value": "={{ $binary.cvFile?.mimeType || 'Unknown' }}"
-            }
-          ],
-          "boolean": [
-            {
-              "name": "hasCvFile",
-              "value": "={{ !!$binary.cvFile }}"
-            },
-            {
-              "name": "hasJobData",
-              "value": "={{ !!$json.jobDetails }}"
-            }
-          ]
-        },
         "options": {}
       },
-      "id": "extract-formdata",
-      "name": "Extract FormData",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 2,
-      "position": [460, 300]
-    },
-    {
-      "parameters": {
-        "keepOnlySet": false,
-        "values": {
-          "object": [
-            {
-              "name": "jobData",
-              "value": "={{ JSON.parse($json.jobDetailsRaw || '{}') }}"
-            }
-          ],
-          "string": [
-            {
-              "name": "jobTitle",
-              "value": "={{ JSON.parse($json.jobDetailsRaw || '{}').title || 'No title' }}"
-            },
-            {
-              "name": "jobCompany", 
-              "value": "={{ JSON.parse($json.jobDetailsRaw || '{}').company || 'No company' }}"
-            },
-            {
-              "name": "responsibilitiesCount",
-              "value": "={{ (JSON.parse($json.jobDetailsRaw || '{}').responsibilities || []).length }}"
-            },
-            {
-              "name": "requirementsCount",
-              "value": "={{ (JSON.parse($json.jobDetailsRaw || '{}').requirements || []).length }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "parse-job-data",
-      "name": "Parse Job Data",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 2,
-      "position": [680, 300]
-    },
-    {
-      "parameters": {
-        "action": "pdf",
-        "options": {},
-        "binaryPropertyName": "cvFile"
-      },
-      "id": "extract-pdf-text",
-      "name": "Extract PDF Text",
-      "type": "n8n-nodes-base.extractFromFile",
-      "typeVersion": 1,
-      "position": [900, 300]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": {
-          "success": true,
-          "debug": {
-            "receivedAt": "={{ new Date().toISOString() }}",
-            "uploadMethod": "formdata-processing",
-            "formData": {
-              "hasJobData": "={{ $('Extract FormData').item.json.hasJobData }}",
-              "hasCvFile": "={{ $('Extract FormData').item.json.hasCvFile }}",
-              "timestamp": "={{ $('Extract FormData').item.json.timestamp }}",
-              "source": "={{ $('Extract FormData').item.json.source }}"
-            },
-            "jobData": {
-              "title": "={{ $('Parse Job Data').item.json.jobTitle }}",
-              "company": "={{ $('Parse Job Data').item.json.jobCompany }}",
-              "responsibilitiesCount": "={{ $('Parse Job Data').item.json.responsibilitiesCount }}",
-              "requirementsCount": "={{ $('Parse Job Data').item.json.requirementsCount }}"
-            },
-            "cvFile": {
-              "fileName": "={{ $('Extract FormData').item.json.cvFileName }}",
-              "fileSize": "={{ $('Extract FormData').item.json.cvFileSize }}",
-              "mimeType": "={{ $('Extract FormData').item.json.cvMimeType }}"
-            },
-            "pdfProcessing": {
-              "extractionSuccess": "={{ !!$('Extract PDF Text').item.json?.text }}",
-              "textLength": "={{ $('Extract PDF Text').item.json?.text?.length || 0 }}",
-              "textPreview": "={{ $('Extract PDF Text').item.json?.text?.substring(0, 200) || 'No text extracted' }}"
-            }
-          },
-          "analysis": {
-            "matchScore": 88,
-            "pdfProcessingResult": "{{ $('Extract PDF Text').item.json?.text ? 'Success' : 'Failed' }}",
-            "extractedTextLength": "{{ $('Extract PDF Text').item.json?.text?.length || 0 }}",
-            "jobAnalysis": {
-              "title": "{{ $('Parse Job Data').item.json.jobTitle }}",
-              "company": "{{ $('Parse Job Data').item.json.jobCompany }}",
-              "responsibilitiesCount": "{{ $('Parse Job Data').item.json.responsibilitiesCount }}",
-              "requirementsCount": "{{ $('Parse Job Data').item.json.requirementsCount }}"
-            },
-            "recommendations": [
-              "FormData processing successful - PDF extracted",
-              "CV file: {{ $('Extract FormData').item.json.cvFileName }}",
-              "File size: {{ $('Extract FormData').item.json.cvFileSize }} bytes",
-              "Extracted text length: {{ $('Extract PDF Text').item.json?.text?.length || 0 }} characters",
-              "Ready for comprehensive job-CV matching analysis"
-            ]
-          }
-        }
-      },
-      "id": "respond-with-results",
-      "name": "Respond with Results",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [1120, 300]
+      "typeVersion": 1.2,
+      "position": [
+        2480,
+        460
+      ],
+      "id": "e9cba275-8e86-4dd2-ad5c-1ad97452f345",
+      "name": "Respond to Webhook",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 2
     }
   ],
+  "pinData": {},
   "connections": {
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Summarization Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Personal Data",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Qualifications",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Summarization Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HR Expert": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Personal Data": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Profile Wanted": {
+      "main": [
+        [
+          {
+            "node": "HR Expert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualifications": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Qualifications",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Personal Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarization Chain": {
+      "main": [
+        [
+          {
+            "node": "Profile Wanted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "HR Expert",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "HR Expert",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
     "Webhook": {
       "main": [
         [
           {
-            "node": "Extract FormData",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract FormData": {
-      "main": [
-        [
-          {
-            "node": "Parse Job Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Job Data": {
-      "main": [
-        [
-          {
-            "node": "Extract PDF Text",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract PDF Text": {
-      "main": [
-        [
-          {
-            "node": "Respond with Results",
+            "node": "Extract from File",
             "type": "main",
             "index": 0
           }
@@ -217,6 +487,22 @@
       ]
     }
   },
-  "settings": {},
-  "staticData": null
-} 
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fe519761-7f03-45d4-91e8-fc189d9e0118",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f56fd9a4f55275ac487d3d81eecb5c398d446e229c079b877d0b2205cd4e2adc"
+  },
+  "id": "CfdVzusShPYKOe9r",
+  "tags": [
+    {
+      "createdAt": "2025-05-29T08:35:37.114Z",
+      "updatedAt": "2025-05-29T08:35:37.114Z",
+      "id": "fQ6RaHTlU5ROeqnr",
+      "name": "TEST"
+    }
+  ]
+}
