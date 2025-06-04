@@ -2,8 +2,29 @@
 
 一個智能的Chrome擴展程序，可以自動提取多個求職網站的職位信息，並通過AI分析您的CV與職位的匹配度。
 
+## 🎥 功能演示
+
+### 📺 影片演示
 [![JobsDB CV Analysis 演示影片](https://img.youtube.com/vi/EEyVj6jnGm8/maxresdefault.jpg)](https://www.youtube.com/watch?v=EEyVj6jnGm8)
 
+*點擊上方圖片觀看完整功能演示*
+
+### 📸 功能截圖
+
+<details>
+<summary>🔍 查看功能截圖</summary>
+
+| 主界面 | 職位提取 |
+|--------|----------|
+![螢幕擷取畫面 2025-06-04 120757](https://github.com/user-attachments/assets/44e4e408-5a7c-4051-a66e-cdfeba2739b5)
+
+
+| CV上傳 | 分析結果 |
+|--------|----------|
+![image](https://github.com/user-attachments/assets/6a9717fe-1ebf-4bb5-8f19-058b90b36621)
+
+
+</details>
 ## ✨ 功能特點
 
 ### 🌐 多網站支援
